@@ -5,7 +5,7 @@ Spec (specs/YYYY-MM-DD-HHMM-<slug>.json):
   "brand": "Titan", "name": ["Karishma", "Analog Watch"],
   "feat": ["Gold-tone dial", "", "Water resistant", "", "4.3 stars | 12,000+", "ratings on Amazon"],
   "images": ["https://m.media-amazon.com/...jpg", "..."],   # real product photos only
-  "host": "auto" | "<file in media/hosts>", "hook": "short on-screen hook",  # reel only
+  "host": "auto" | "<file in media/hosts>", "hook": "..", "problem": "..", "rating": "4.3", "reviews": "12K+", "bought": "3K+", "cta_comment": "Comment WATCH for the link",  # reel (story style, default)
   "slides": [ {"title": "...", "lines": ["..."], "image": 0} ],  # carousel only (image = index in images)
   "caption": "..."
 }
@@ -74,6 +74,11 @@ def product_half(spec, img, out, idx):
     im.save(out)
 
 def build_reel(spec, stem, tmp):
+    if spec.get("style","story")=="story":
+        sys.path.insert(0,str(ROOT/"scripts")); import story
+        imgs=[fetch(u, f"{tmp}/p{i}.jpg") for i,u in enumerate(spec["images"][:3])]
+        story.render(spec, pick_host(spec, stem), imgs, str(ROOT/f"media/{stem}.mp4"), FONT, tmp)
+        return [f"media/{stem}.mp4"]
     imgs=[fetch(u, f"{tmp}/p{i}.jpg") for i,u in enumerate(spec["images"][:2])]
     if len(imgs)==1: imgs.append(imgs[0])
     product_half(spec, imgs[0], f"{tmp}/a.png", 0); product_half(spec, imgs[1], f"{tmp}/b.png", 1)
