@@ -8,5 +8,6 @@ Daily Instagram publishing for @kyacheezhai.in. Claude drops posts into `queue/`
 Drop a spec in `specs/` (see scripts/build.py docstring). A push builds the media into `media/` and the post into `queue/`; the 11:45 AM / 7:45 PM IST runs publish anything due.
 
 ## Daily schedule (IST)
-10:15 story · 11:45 reel · 13:15 story · 15:15 carousel · 17:15 story · 19:45 reel · 21:15 story.
+10:15 story · 11:45 reel (Tara) · 13:15 story · 15:15 carousel · 16:15 EXTRA product-only reel on alternate days (host "none") · 17:15 story · 19:45 reel (Tara) · 21:15 story.
+Rule: never change reels already queued; product-only reels are added only as extras in the 16:15 slot.
 Spec stems: YYYY-MM-DD-HHMM-<slug>. Story spec: {"kind":"story","style":"find|question|reminder|deal","images":[url],"title":"..","text":"..","cta":"Link in bio"} or {"kind":"story","video":"media/<reel stem>.mp4"} to reshare a reel.
