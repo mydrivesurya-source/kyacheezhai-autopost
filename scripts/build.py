@@ -5,7 +5,7 @@ Spec (specs/YYYY-MM-DD-HHMM-<slug>.json):
   "brand": "Titan", "name": ["Karishma", "Analog Watch"],
   "feat": ["Gold-tone dial", "", "Water resistant", "", "4.3 stars | 12,000+", "ratings on Amazon"],
   "images": ["https://m.media-amazon.com/...jpg", "..."],   # real product photos only
-  "host": "auto" | "<file in media/hosts>",                 # reel only
+  "host": "auto" | "<file in media/hosts>", "hook": "short on-screen hook",  # reel only
   "slides": [ {"title": "...", "lines": ["..."], "image": 0} ],  # carousel only (image = index in images)
   "caption": "..."
 }
@@ -59,18 +59,36 @@ def pick_host(spec, stem):
         h = hosts[day % len(hosts)]
     return str(ROOT/"media/hosts"/h)
 
+def product_half(spec, img, out, idx):
+    """Bottom half 1080x960: big real product photo on a clean light background, slim text strip."""
+    W,H=1080,960; im=Image.new("RGB",(W,H),(255,255,255)); d=ImageDraw.Draw(im)
+    p=Image.open(img).convert("RGB"); p.thumbnail((1000,700))
+    im.paste(p,((W-p.width)//2,30+(700-p.height)//2))
+    d.rectangle([0,750,W,H],fill=(248,244,238))
+    title=(spec["brand"]+" "+" ".join(spec["name"])).strip()
+    t=wrap(d,title,F(46),980)[0]; d.text((50,772),t,font=F(46),fill=CH)
+    feats=[f for f in spec["feat"] if f]
+    line="  \u2022  ".join(feats[idx*2:idx*2+2] or feats[:2])
+    d.text((50,838),wrap(d,line,F(32),990)[0],font=F(32),fill=(90,85,80))
+    d.text((50,900),"#ad  Real product photo  |  Link in bio",font=F(26),fill=CORAL)
+    im.save(out)
+
 def build_reel(spec, stem, tmp):
     imgs=[fetch(u, f"{tmp}/p{i}.jpg") for i,u in enumerate(spec["images"][:2])]
     if len(imgs)==1: imgs.append(imgs[0])
-    panel(spec, imgs[0], f"{tmp}/a.png"); panel(spec, imgs[1], f"{tmp}/b.png")
+    product_half(spec, imgs[0], f"{tmp}/a.png", 0); product_half(spec, imgs[1], f"{tmp}/b.png", 1)
     host=pick_host(spec, stem); D=dur(host); O=max(D/2-0.25,0.5)
+    hook=spec.get("hook","Kya cheez hai yaar!").replace("'", "")
     out=ROOT/f"media/{stem}.mp4"
-    fc=(f"[0:v]scale=1080:1920,crop=1080:1020:0:0,setsar=1,fps=30[top];"
-        f"[1:v]scale=1080:900,fps=30,setsar=1[a];[2:v]scale=1080:900,fps=30,setsar=1[b];"
-        f"[a][b]xfade=transition=slideleft:duration=0.5:offset={O:.2f},trim=duration={D:.2f}[bot];[top][bot]vstack[v];"
-        f"[v]drawbox=x=820:y=30:w=230:h=50:color=0xFF5A4E@0.95:t=fill,"
-        f"drawtext=fontfile={FONT}:text='KYA CHEEZ HAI':x=840:y=39:fontsize=26:fontcolor=white,"
-        f"drawtext=fontfile={FONT}:text='AI host':x=34:y=36:fontsize=22:fontcolor=white@0.75:box=1:boxcolor=black@0.35:boxborderw=8[out]")
+    # top half: whole Tara frame (no crop) centred on a soft blurred copy of the same clip
+    fc=(f"[0:v]fps=30,split=2[bg][fg];"
+        f"[bg]scale=1080:1920,crop=1080:960:0:480,boxblur=24:2,eq=brightness=-0.08[bgb];"
+        f"[fg]scale=-2:960[fgs];[bgb][fgs]overlay=(W-w)/2:0,setsar=1[top];"
+        f"[1:v]scale=1080:960,fps=30,setsar=1[a];[2:v]scale=1080:960,fps=30,setsar=1[b];"
+        f"[a][b]xfade=transition=slideleft:duration=0.5:offset={O:.2f},trim=duration={D:.2f}[bot];"
+        f"[top][bot]vstack,"
+        f"drawtext=fontfile={FONT}:text='KYA CHEEZ HAI':x=40:y=40:fontsize=30:fontcolor=white:box=1:boxcolor=0xFF5A4E@0.92:boxborderw=12,"
+        f"drawtext=fontfile={FONT}:text='{hook}':x=(w-text_w)/2:y=860:fontsize=50:fontcolor=white:borderw=5:bordercolor=black@0.6:enable='lt(t,{D-0.5:.2f})'[out]")
     subprocess.run(["ffmpeg","-y","-loglevel","error","-i",host,"-loop","1","-t",f"{D:.2f}","-i",f"{tmp}/a.png",
         "-loop","1","-t",f"{D:.2f}","-i",f"{tmp}/b.png","-filter_complex",fc,"-map","[out]","-map","0:a?",
         "-c:v","libx264","-preset","veryfast","-crf","21","-pix_fmt","yuv420p","-c:a","aac","-shortest",
