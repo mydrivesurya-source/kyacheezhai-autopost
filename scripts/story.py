@@ -58,21 +58,31 @@ def music(dur, sr=44100):
 
 def render(spec, host, imgs, out, font, tmp):
     r=R(font); F=r.F
-    dur_host=len(read_frames(host,108,192))/FPS
-    full=read_frames(host,W,H)                       # host is 9:16 -> full screen, uncropped
-    half=[f.resize((540,960)) for f in full]
-    nT=len(full)
-    def tara(i, kind="full"):
-        # play forward, then ping-pong silently after the clip ends
-        k=i if i<nT else (nT-1-((i-nT)%(nT-1)) if ((i-nT)//(nT-1))%2==0 else (i-nT)%(nT-1))
-        return (full if kind=="full" else half)[max(0,min(nT-1,k))]
-    bgcache={}
-    def half_top(i):
-        f=tara(i,"half"); key=i//6
-        if key not in bgcache:
-            bgcache.clear(); bgcache[key]=tara(i).crop((0,480,W,1440)).filter(ImageFilter.GaussianBlur(28))
-        top=bgcache[key].copy(); top.paste(f,((W-540)//2,0)); return top
     P=[Image.open(p).convert("RGB") for p in imgs]
+    nohost = (host is None)
+    if nohost:
+        # product-only hero: real photo on a soft blurred copy of itself, slow push-in
+        base=P[0].copy(); bg=base.resize((W,H)).filter(ImageFilter.GaussianBlur(40))
+        bg=Image.blend(bg,Image.new("RGB",(W,H),CH),0.35)
+        def hero(i, kind="full"):
+            z=1+0.0015*i; im=bg.copy(); ph=base.copy(); ph.thumbnail((int(900*z),int(1100*z)))
+            card=Image.new("RGB",(ph.width+40,ph.height+40),WHITE); card.paste(ph,(20,20))
+            im.paste(card,((W-card.width)//2,(H-card.height)//2-140))
+            return im if kind=="full" else im.crop((0,(H-960)//2-140,W,(H+960)//2-140))
+        tara=hero; half_top=lambda i: hero(i,"half")
+    else:
+        full=read_frames(host,W,H)                       # host is 9:16 -> full screen, uncropped
+        half=[f.resize((540,960)) for f in full]
+        nT=len(full)
+        def tara(i, kind="full"):
+            k=i if i<nT else (nT-1-((i-nT)%(nT-1)) if ((i-nT)//(nT-1))%2==0 else (i-nT)%(nT-1))
+            return (full if kind=="full" else half)[max(0,min(nT-1,k))]
+        bgcache={}
+        def half_top(i):
+            f=tara(i,"half"); key=i//6
+            if key not in bgcache:
+                bgcache.clear(); bgcache[key]=tara(i).crop((0,480,W,1440)).filter(ImageFilter.GaussianBlur(28))
+            top=bgcache[key].copy(); top.paste(f,((W-540)//2,0)); return top
     def fitted(img, box_w, box_h, scale=1.0):
         im=img.copy(); im.thumbnail((int(box_w*scale),int(box_h*scale))); return im
 
@@ -127,9 +137,9 @@ def render(spec, host, imgs, out, font, tmp):
                 x=70-int((1-a)*80); y=1380+j*125
                 dr.ellipse([x,y+4,x+56,y+60],fill=MINT); dr.line([(x+14,y+33),(x+25,y+45),(x+44,y+18)],fill=CH,width=7)
                 dr.text((x+84,y),ft,font=F(50),fill=WHITE)
-            # Tara bubble
-            b=tara(i).resize((300,533)).crop((0,60,300,360)); m=Image.new("L",(300,300),0); ImageDraw.Draw(m).ellipse([0,0,299,299],fill=255)
-            dr.ellipse([W-345,95,W-35,405],fill=CORAL); im.paste(b,(W-340,100),m)
+            if not nohost:
+              b=tara(i).resize((300,533)).crop((0,60,300,360)); m=Image.new("L",(300,300),0); ImageDraw.Draw(m).ellipse([0,0,299,299],fill=255)
+              dr.ellipse([W-345,95,W-35,405],fill=CORAL); im.paste(b,(W-340,100),m)
         elif nm=="proof":
             pim=fitted(P[0],560,560); im.paste(pim,((W-pim.width)//2,260+(560-pim.height)//2)); dr=ImageDraw.Draw(im)
             dr.text((W/2-dr.textlength("Loved by buyers",font=F(56))/2,900),"Loved by buyers",font=F(56),fill=CH)
@@ -152,7 +162,7 @@ def render(spec, host, imgs, out, font, tmp):
         # global chrome
         dr.rectangle([0,0,int(W*t/total),10],fill=CORAL)
         tag="KYA CHEEZ HAI"; dr.rounded_rectangle([40,36,60+dr.textlength(tag,font=F(30)),86],14,fill=CORAL); dr.text((50,40),tag,font=F(30),fill=WHITE)
-        foot="#ad  |  AI host  |  real product photos"
+        foot="#ad  |  real product photos" if nohost else "#ad  |  AI host  |  real product photos"
         dr.text((40,H-60),foot,font=F(26),fill=(170,165,160) if nm in("reveal","proof") else (230,225,220))
         # whip transition: 5-frame blend at scene starts
         if prev is not None and lt<5/FPS and s0>0: im=Image.blend(prev,im,min(1,(lt*FPS+1)/5))
@@ -161,10 +171,10 @@ def render(spec, host, imgs, out, font, tmp):
     ff.stdin.close(); ff.wait()
     # audio: Tara voice for her clip length + music bed ducked under voice
     sr=44100
-    raw=subprocess.run(["ffmpeg","-loglevel","error","-i",host,"-f","s16le","-ac","1","-ar",str(sr),"-"],capture_output=True).stdout
-    voice=np.frombuffer(raw,np.int16).astype(np.float32)/32768 if raw else np.zeros(1)
+    raw=b"" if nohost else subprocess.run(["ffmpeg","-loglevel","error","-i",host,"-f","s16le","-ac","1","-ar",str(sr),"-"],capture_output=True).stdout
+    voice=np.frombuffer(raw,np.int16).astype(np.float32)/32768 if raw else np.zeros(0)
     n=int(total*sr); mix=np.zeros(n); v=voice[:n]; mix[:len(v)]+=v*0.95
-    bed=music(total,sr); duck=np.ones(n)*0.32; duck[:len(v)]=0.12
+    bed=music(total,sr); duck=np.ones(n)*(0.5 if nohost else 0.32); duck[:len(v)]=0.12
     mix+=bed*duck; fade=int(0.6*sr); mix[-fade:]*=np.linspace(1,0,fade)
     pcm=(np.clip(mix,-1,1)*32767).astype(np.int16)
     with wave.open(f"{tmp}/a.wav","wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(pcm.tobytes())

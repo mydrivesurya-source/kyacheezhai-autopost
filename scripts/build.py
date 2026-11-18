@@ -77,7 +77,8 @@ def build_reel(spec, stem, tmp):
     if spec.get("style","story")=="story":
         sys.path.insert(0,str(ROOT/"scripts")); import story
         imgs=[fetch(u, f"{tmp}/p{i}.jpg") for i,u in enumerate(spec["images"][:3])]
-        story.render(spec, pick_host(spec, stem), imgs, str(ROOT/f"media/{stem}.mp4"), FONT, tmp)
+        host=None if spec.get("host")=="none" else pick_host(spec, stem)
+        story.render(spec, host, imgs, str(ROOT/f"media/{stem}.mp4"), FONT, tmp)
         return [f"media/{stem}.mp4"]
     imgs=[fetch(u, f"{tmp}/p{i}.jpg") for i,u in enumerate(spec["images"][:2])]
     if len(imgs)==1: imgs.append(imgs[0])
