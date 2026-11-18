@@ -2,7 +2,7 @@ name: Build and publish to Instagram
 on:
   schedule:
     - cron: "15 6 * * *"    # 11:45 AM IST
-    - cron: "45 13 * * *"   # 7:15 PM IST
+    - cron: "15 14 * * *"   # 7:45 PM IST
   push:
     paths: ["specs/**"]
   workflow_dispatch:
