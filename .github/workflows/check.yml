@@ -6,10 +6,8 @@ jobs:
     steps:
       - run: |
           G=https://graph.facebook.com/v21.0; IG=17841435471298040
-          echo "--- debug"; curl -s "$G/debug_token?input_token=$T&access_token=$T" | python3 -c "import json,sys;d=json.load(sys.stdin)['data'];print({k:d.get(k) for k in ['type','app_id','profile_id','scopes','granular_scopes','is_valid']})"
+          echo "--- debug"; curl -s "$G/debug_token?input_token=$T&access_token=$T" | python3 -c "import json,sys;d=json.load(sys.stdin)['data'];print({k:d.get(k) for k in ['type','is_valid','expires_at','data_access_expires_at']})"
           echo "--- me"; curl -s "$G/me?fields=id,name&access_token=$T"; echo
           echo "--- page ig"; curl -s "$G/1438488679354218?fields=instagram_business_account,tasks&access_token=$T"; echo
-          echo "--- container test (not published)"; curl -s -X POST "$G/$IG/media" --data-urlencode "image_url=https://raw.githubusercontent.com/mydrivesurya-source/kyacheezhai-autopost/main/media/looks/tara_cafe.png" -d "caption=test" -d "access_token=$T"; echo
-          echo "--- via graph.instagram? no; v19"; curl -s -X POST "https://graph.facebook.com/v19.0/$IG/media" --data-urlencode "image_url=https://raw.githubusercontent.com/mydrivesurya-source/kyacheezhai-autopost/main/media/looks/tara_cafe.png" -d "access_token=$T"; echo
         env:
           T: ${{ secrets.IG_TOKEN }}
