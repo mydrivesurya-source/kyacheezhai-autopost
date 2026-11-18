@@ -77,6 +77,15 @@ def render(spec, host, imgs, out, font, tmp):
         def tara(i, kind="full"):
             k=i if i<nT else (nT-1-((i-nT)%(nT-1)) if ((i-nT)//(nT-1))%2==0 else (i-nT)%(nT-1))
             return (full if kind=="full" else half)[max(0,min(nT-1,k))]
+        import os
+        SMILE={"tara_party.mp4":6.5}
+        st=SMILE.get(os.path.basename(host),0.05)
+        still_full=full[min(nT-1,int(st*FPS))]
+        def still(i, zoom=True):
+            # smiling still (no lip movement) with a slow push-in
+            if not zoom: return still_full
+            z=1+0.0009*i; w,h=int(W*z),int(H*z)
+            return still_full.resize((w,h)).crop(((w-W)//2,(h-H)//2,(w-W)//2+W,(h-H)//2+H))
         bgcache={}
         def half_top(i):
             f=tara(i,"half"); key=i//6
@@ -138,7 +147,7 @@ def render(spec, host, imgs, out, font, tmp):
                 dr.ellipse([x,y+4,x+56,y+60],fill=MINT); dr.line([(x+14,y+33),(x+25,y+45),(x+44,y+18)],fill=CH,width=7)
                 dr.text((x+84,y),ft,font=F(50),fill=WHITE)
             if not nohost:
-              b=tara(i).resize((300,533)).crop((0,60,300,360)); m=Image.new("L",(300,300),0); ImageDraw.Draw(m).ellipse([0,0,299,299],fill=255)
+              b=still(i,False).resize((300,533)).crop((0,60,300,360)); m=Image.new("L",(300,300),0); ImageDraw.Draw(m).ellipse([0,0,299,299],fill=255)
               dr.ellipse([W-345,95,W-35,405],fill=CORAL); im.paste(b,(W-340,100),m)
         elif nm=="proof":
             pim=fitted(P[0],560,560); im.paste(pim,((W-pim.width)//2,260+(560-pim.height)//2)); dr=ImageDraw.Draw(im)
@@ -153,7 +162,7 @@ def render(spec, host, imgs, out, font, tmp):
             dr.text((W/2-dr.textlength(txt,font=F(50))/2,1190),txt,font=F(50),fill=CH)
             if bought: t2=f"{bought} bought last month"; dr.text((W/2-dr.textlength(t2,font=F(44))/2,1270),t2,font=F(44),fill=CORAL)
         else:  # cta
-            im.paste(tara(i),(0,0)); dr=ImageDraw.Draw(im)
+            im.paste(tara(i) if nohost else still(int(lt*FPS)),(0,0)); dr=ImageDraw.Draw(im)
             s=1+0.06*math.sin(lt*2*math.pi*1.6); bw,bh=int(760*s),int(150*s)
             dr.rounded_rectangle([(W-bw)//2,1250,(W+bw)//2,1250+bh],bh//2,fill=CORAL)
             f=F(int(72*s)); tx="Link in bio"; dr.text(((W-dr.textlength(tx,font=f))/2,1250+bh/2-44*s),tx,font=f,fill=WHITE)
@@ -174,7 +183,7 @@ def render(spec, host, imgs, out, font, tmp):
     raw=b"" if nohost else subprocess.run(["ffmpeg","-loglevel","error","-i",host,"-f","s16le","-ac","1","-ar",str(sr),"-"],capture_output=True).stdout
     voice=np.frombuffer(raw,np.int16).astype(np.float32)/32768 if raw else np.zeros(0)
     n=int(total*sr); mix=np.zeros(n); v=voice[:n]; mix[:len(v)]+=v*0.95
-    bed=music(total,sr); duck=np.ones(n)*(0.5 if nohost else 0.32); duck[:len(v)]=0.12
+    bed=music(total,sr); duck=np.ones(n)*0.62; duck[:len(v)]=0.16
     mix+=bed*duck; fade=int(0.6*sr); mix[-fade:]*=np.linspace(1,0,fade)
     pcm=(np.clip(mix,-1,1)*32767).astype(np.int16)
     with wave.open(f"{tmp}/a.wav","wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(pcm.tobytes())
