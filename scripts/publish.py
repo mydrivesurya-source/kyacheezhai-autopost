@@ -66,7 +66,10 @@ def main():
     files = sorted(f for f in q.glob("*.json") if (f.name.startswith(only) if only else f.name[:15] <= now))[:3]
     if not files: print("nothing due at", now); return
     for f in files:
-        mid = publish(json.loads(f.read_text()))
+        try:
+            mid = publish(json.loads(f.read_text()))
+        except SystemExit as e:
+            print("API error on", f.name, e); continue
         print("published", f.name, "->", mid)
         shutil.move(str(f), done / f.name)
 
