@@ -1,8 +1,8 @@
 name: Publish to Instagram
 on:
   schedule:
-    - cron: "45 13 * * *"   # 7:15 PM IST daily
-    - cron: "15 6 * * *"    # 11:45 AM IST daily
+    - cron: "45 13 * * *"   # 7:15 PM IST
+    - cron: "15 6 * * *"    # 11:45 AM IST
   workflow_dispatch:
     inputs:
       prefix: {description: "Queue file prefix to publish (default: today)", required: false}

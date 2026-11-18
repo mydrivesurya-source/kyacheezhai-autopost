@@ -1,5 +1,5 @@
 """Publish today's queued Instagram posts for @kyacheezhai.in via the Instagram Graph API.
-Queue files: queue/YYYY-MM-DD-<slot>.json  (IST date). Fields:
+Queue files: queue/YYYY-MM-DD-HHMM-<slug>.json  (IST date + earliest IST post time). Fields:
   type: "image" | "carousel" | "reel"
   caption: str
   media: [url, ...]   (public URLs; for files in this repo use media/<name>)
@@ -54,11 +54,12 @@ def publish(post):
     return call(f"{IG}/media_publish", {"creation_id": cid})["id"]
 
 def main():
-    today = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d")
+    now = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d-%H%M")
     only = sys.argv[1] if len(sys.argv) > 1 else None
     q = pathlib.Path("queue"); done = q / "done"; done.mkdir(exist_ok=True)
-    files = sorted(f for f in q.glob("*.json") if f.name.startswith(only or today))
-    if not files: print("nothing queued for", only or today); return
+    # due = slot time already passed (catches missed slots too); at most 2 per run to stay natural
+    files = sorted(f for f in q.glob("*.json") if (f.name.startswith(only) if only else f.name[:15] <= now))[:2]
+    if not files: print("nothing due at", now); return
     for f in files:
         mid = publish(json.loads(f.read_text()))
         print("published", f.name, "->", mid)
