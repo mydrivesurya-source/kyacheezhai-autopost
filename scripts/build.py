@@ -131,6 +131,26 @@ def build_carousel(spec, stem, tmp):
         p=f"media/{stem}-{n}.jpg"; im.save(ROOT/p,quality=92); outs.append(p)
     return outs
 
+def build_story(spec, stem, tmp):
+    """1080x1920 story card. spec: {"kind":"story","style":"find|question|reminder|deal","images":[url],
+    "title":"..","text":"..","video":"media/<reel>.mp4" (optional: share a built reel as the story instead)}"""
+    if spec.get("video"): return [spec["video"]]
+    W,H=1080,1920; style=spec.get("style","find")
+    bgc={"find":CREAM,"question":CH,"reminder":(255,236,230),"deal":MINT}.get(style,CREAM)
+    fg=(255,255,255) if style=="question" else CH
+    im=Image.new("RGB",(W,H),(245,239,230) if bgc==CREAM else bgc); d=ImageDraw.Draw(im)
+    d.rounded_rectangle([60,140,60+d.textlength("KYA CHEEZ HAI",font=F(34))+40,200],18,fill=CORAL); d.text((80,148),"KYA CHEEZ HAI",font=F(34),fill=(255,255,255))
+    y=280
+    for l in wrap(d,spec.get("title",""),F(76),960): d.text((60,y),l,font=F(76),fill=fg); y+=92
+    if spec.get("images"):
+        img=fetch(spec["images"][0], f"{tmp}/s0.jpg"); c,m=card(img,860); im.paste(c,((W-860)//2,y+40),m); y+=940
+    else: y+=60
+    for l in wrap(d,spec.get("text",""),F(48),960): d.text((60,y),l,font=F(48),fill=fg); y+=62
+    d.rounded_rectangle([140,H-330,W-140,H-200],65,fill=CORAL)
+    t=spec.get("cta","Link in bio"); w=d.textlength(t,font=F(56)); d.text(((W-w)/2,H-300),t,font=F(56),fill=(255,255,255))
+    d.text((60,H-110),"#ad  Affiliate links",font=F(28),fill=(150,144,138) if style!="question" else (200,195,188))
+    p=f"media/{stem}.jpg"; im.save(ROOT/p,quality=92); return [p]
+
 def main():
     specs = sorted((ROOT/"specs").glob("*.json"))
     built = {p.stem for p in (ROOT/"queue").rglob("*.json")}
@@ -138,8 +158,9 @@ def main():
         stem=sp.stem
         if stem in built: continue
         spec=json.loads(sp.read_text()); tmp=f"/tmp/{stem}"; os.makedirs(tmp,exist_ok=True)
-        media = build_reel(spec,stem,tmp) if spec["kind"]=="reel" else build_carousel(spec,stem,tmp)
-        q={"type":"reel" if spec["kind"]=="reel" else "carousel","caption":spec["caption"],"media":media}
+        k=spec["kind"]
+        media = build_reel(spec,stem,tmp) if k=="reel" else build_story(spec,stem,tmp) if k=="story" else build_carousel(spec,stem,tmp)
+        q={"type":k,"caption":spec.get("caption",""),"media":media}
         (ROOT/"queue"/f"{stem}.json").write_text(json.dumps(q,ensure_ascii=False,indent=1))
         print("built",stem,media)
 

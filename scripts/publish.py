@@ -1,6 +1,6 @@
 """Publish today's queued Instagram posts for @kyacheezhai.in via the Instagram Graph API.
 Queue files: queue/YYYY-MM-DD-HHMM-<slug>.json  (IST date + earliest IST post time). Fields:
-  type: "image" | "carousel" | "reel"
+  type: "image" | "carousel" | "reel" | "story"
   caption: str
   media: [url, ...]   (public URLs; for files in this repo use media/<name>)
 Posted files are moved to queue/done/.
@@ -41,6 +41,11 @@ def publish(post):
         cid = call(f"{IG}/media", {"image_url": media[0], "caption": cap})["id"]
     elif t == "reel":
         cid = call(f"{IG}/media", {"media_type": "REELS", "video_url": media[0], "caption": cap, "share_to_feed": "true"})["id"]
+    elif t == "story":
+        m = media[0]
+        p = {"media_type": "STORIES"}
+        p.update({"video_url": m} if m.lower().endswith(".mp4") else {"image_url": m})
+        cid = call(f"{IG}/media", p)["id"]
     elif t == "carousel":
         kids = []
         for m in media[:10]:
@@ -58,7 +63,7 @@ def main():
     only = sys.argv[1] if len(sys.argv) > 1 else None
     q = pathlib.Path("queue"); done = q / "done"; done.mkdir(exist_ok=True)
     # due = slot time already passed (catches missed slots too); at most 2 per run to stay natural
-    files = sorted(f for f in q.glob("*.json") if (f.name.startswith(only) if only else f.name[:15] <= now))[:2]
+    files = sorted(f for f in q.glob("*.json") if (f.name.startswith(only) if only else f.name[:15] <= now))[:3]
     if not files: print("nothing due at", now); return
     for f in files:
         mid = publish(json.loads(f.read_text()))

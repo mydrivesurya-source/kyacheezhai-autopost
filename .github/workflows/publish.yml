@@ -1,8 +1,13 @@
 name: Build and publish to Instagram
 on:
   schedule:
-    - cron: "15 6 * * *"    # 11:45 AM IST
-    - cron: "15 14 * * *"   # 7:45 PM IST
+    - cron: "45 4 * * *"    # 10:15 AM IST  story
+    - cron: "15 6 * * *"    # 11:45 AM IST  reel
+    - cron: "45 7 * * *"    # 1:15 PM IST   story
+    - cron: "45 9 * * *"    # 3:15 PM IST   carousel
+    - cron: "45 11 * * *"   # 5:15 PM IST   story
+    - cron: "15 14 * * *"   # 7:45 PM IST   reel
+    - cron: "45 15 * * *"   # 9:15 PM IST   story
   push:
     paths: ["specs/**"]
   workflow_dispatch:
