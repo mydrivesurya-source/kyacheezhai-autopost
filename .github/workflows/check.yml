@@ -1,0 +1,12 @@
+name: Check Instagram connection
+on: workflow_dispatch
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          curl -s "https://graph.facebook.com/v21.0/17841435471298040?fields=username,followers_count,media_count&access_token=${IG_TOKEN}"
+          echo
+          curl -s "https://graph.facebook.com/v21.0/17841435471298040/content_publishing_limit?fields=quota_usage,config&access_token=${IG_TOKEN}"
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
