@@ -11,3 +11,7 @@ Drop a spec in `specs/` (see scripts/build.py docstring). A push builds the medi
 10:15 story · 11:45 reel (Tara) · 13:15 story · 15:15 carousel · 16:15 EXTRA product-only reel on alternate days (host "none") · 17:15 story · 19:45 reel (Tara) · 21:15 story.
 Rule: never change reels already queued; product-only reels are added only as extras in the 16:15 slot.
 Spec stems: YYYY-MM-DD-HHMM-<slug>. Story spec: {"kind":"story","style":"find|question|reminder|deal","images":[url],"title":"..","text":"..","cta":"Link in bio"} or {"kind":"story","video":"media/<reel stem>.mp4"} to reshare a reel.
+
+## Tara library (reuse forever, no new Higgsfield spend)
+Hosts (media/hosts): rooftop (black satin), party (coral), gym (mint), goa (linen), cafe (blazer), garden_bindi (teal kurta), saree (maroon silk, festive), street (denim, casual), sangeet (emerald satin, wedding/party), cozy (sweater + coffee, winter/home).
+Voice pack (media/voice, Tara's cloned voice): problem_*, reveal_*, feat_*, proof_*, cta_* — story.py adds a proof_ and a cta_ line automatically on Tara reels.

@@ -78,7 +78,7 @@ def render(spec, host, imgs, out, font, tmp):
             k=i if i<nT else (nT-1-((i-nT)%(nT-1)) if ((i-nT)//(nT-1))%2==0 else (i-nT)%(nT-1))
             return (full if kind=="full" else half)[max(0,min(nT-1,k))]
         import os
-        SMILE={"tara_party.mp4":6.5}
+        SMILE={"tara_party.mp4":6.5,"tara_saree.mp4":7.6,"tara_street.mp4":7.6,"tara_sangeet.mp4":7.6,"tara_cozy.mp4":7.6}
         st=SMILE.get(os.path.basename(host),0.05)
         still_full=full[min(nT-1,int(st*FPS))]
         def still(i, zoom=True):
@@ -100,7 +100,7 @@ def render(spec, host, imgs, out, font, tmp):
     hook=spec.get("hook","Kya cheez hai yaar!")
     problem=spec.get("problem","Har din ki problem? Ab nahi.")
     rating=float(spec.get("rating","4.3")); reviews=spec.get("reviews","10K+"); bought=spec.get("bought","")
-    scenes=[("hook",2.6),("problem",2.4),("reveal",3.0),("features",0.9*len(feats)+0.8),("proof",2.0),("cta",2.2)]
+    scenes=[("hook",2.6),("problem",2.4),("reveal",3.0),("features",0.9*len(feats)+0.8),("proof",2.8),("cta",3.9)]
     starts=[];acc=0
     for nm,d in scenes: starts.append((nm,acc,d)); acc+=d
     total=acc; N=int(total*FPS)
@@ -184,6 +184,25 @@ def render(spec, host, imgs, out, font, tmp):
     voice=np.frombuffer(raw,np.int16).astype(np.float32)/32768 if raw else np.zeros(0)
     n=int(total*sr); mix=np.zeros(n); v=voice[:n]; mix[:len(v)]+=v*0.95
     bed=music(total,sr); duck=np.ones(n)*0.62; duck[:len(v)]=0.16
+    # Tara voice lines (reusable pack in media/voice) over the proof and CTA scenes, only for Tara reels
+    if not nohost:
+        import os, random, glob
+        vdir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"media","voice")
+        rnd=random.Random(spec.get("brand","")+str(total))
+        def line(prefix):
+            fs=sorted(glob.glob(os.path.join(vdir,prefix+"*.wav")))
+            if not fs: return None
+            raw=subprocess.run(["ffmpeg","-loglevel","error","-i",rnd.choice(fs),"-f","s16le","-ac","1","-ar",str(sr),"-"],capture_output=True).stdout
+            return np.frombuffer(raw,np.int16).astype(np.float32)/32768
+        cues=[]
+        for nm,s0,d in starts:
+            if nm=="proof": cues.append((s0+0.2,line("proof_")))
+            if nm=="cta": cues.append((s0+0.15,line("cta_")))
+        for t0,clip in cues:
+            if clip is None: continue
+            a=int(t0*sr); b=min(n,a+len(clip))
+            if a<len(v): continue          # never talk over her own on-camera line
+            mix[a:b]+=clip[:b-a]*1.0; duck[a:b]=np.minimum(duck[a:b],0.18)
     mix+=bed*duck; fade=int(0.6*sr); mix[-fade:]*=np.linspace(1,0,fade)
     pcm=(np.clip(mix,-1,1)*32767).astype(np.int16)
     with wave.open(f"{tmp}/a.wav","wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr); w.writeframes(pcm.tobytes())
