@@ -5,14 +5,22 @@ ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TAG="kyacheezhai-21"; IG="https://www.instagram.com/kyacheezhai.in/"
 now=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=5,minutes=30)).strftime("%Y-%m-%d-%H%M")
 items=[]
+shown=set()  # product images already featured in a posted carousel -> list those products now
+for f in sorted(glob.glob(os.path.join(ROOT,"specs","*.json"))):
+    if os.path.basename(f)[:15]>now: continue
+    d=json.load(open(f,encoding="utf-8"))
+    if d.get("kind")=="carousel": shown.update(d.get("images",[]))
 for f in sorted(glob.glob(os.path.join(ROOT,"specs","*.json"))):
     stem=os.path.basename(f)[:-5]
-    if stem[:15]>now: continue
     d=json.load(open(f,encoding="utf-8"))
+    if stem[:15]>now and not (d.get("images") and d["images"][0] in shown): continue
     if d.get("kind")!="reel" or not (d.get("asin") or d.get("url")): continue
     store=d.get("store","Amazon")
     url=d.get("url") or f"https://www.amazon.in/dp/{d['asin']}?tag={TAG}"
-    items.append(dict(id=stem[16:],when=stem[:15],name=(d.get("brand","")+" "+" ".join(d.get("name",[]))).strip(),
+    kw=(d.get("cta_comment","").replace("Comment","").replace("for the link","").strip().lower())
+    nm=" ".join(d.get("name",[])).lower()
+    if any(w in nm for w in ("parfum","edp","fragrance","deo")): kw+=" perfume"
+    items.append(dict(id=stem[16:],when=min(stem[:15],now),kw=kw,name=(d.get("brand","")+" "+" ".join(d.get("name",[]))).strip(),
         brand=d.get("brand",""),cat=d.get("category","Finds"),img=d["images"][0],story=d.get("problem",""),
         hook=d.get("hook",""),feat=[x for x in d.get("feat",[]) if x][:3],rating=d.get("rating",""),
         reviews=d.get("reviews",""),bought=d.get("bought",""),url=url,store=store))
@@ -27,7 +35,7 @@ def stars(r):
 def card(i,n):
     feats="".join(f"<li>{e(x)}</li>" for x in i["feat"])
     bought=f'<span class="pill">{e(i["bought"])} bought last month</span>' if i["bought"] else ""
-    return f'''<article class="card reveal" data-cat="{e(i['cat'])}" data-q="{e((i['name']+' '+i['cat']).lower())}" id="{e(i['id'])}">
+    return f'''<article class="card reveal" data-cat="{e(i['cat'])}" data-q="{e((i['name']+' '+i['cat']+' '+i['kw']).lower())}" id="{e(i['id'])}">
   <a class="media" href="{e(i['url'])}" target="_blank" rel="nofollow sponsored noopener"><img loading="lazy" src="{e(i['img'])}" alt="{e(i['name'])}"><span class="num">{n:02d}</span></a>
   <div class="body"><div class="meta"><span class="cat">{e(i['cat'])}</span>{bought}</div>
   <h3>{e(i['name'])}</h3><p class="why">{e(i['story'])}</p><ul>{feats}</ul>
@@ -91,6 +99,7 @@ h1 em{{font-style:italic;color:var(--coral)}}
 .stars{{--p:80%;display:inline-block;width:86px;height:15px;background:linear-gradient(90deg,var(--gold) var(--p),#D9D1C6 var(--p));-webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 22'%3E%3Cg%3E%3Cpath id='s' d='M11 1l3 6.5 7 .8-5.2 4.8 1.4 7L11 16.6 4.8 20l1.4-7L1 8.3l7-.8z'/%3E%3Cuse href='%23s' x='24.5'/%3E%3Cuse href='%23s' x='49'/%3E%3Cuse href='%23s' x='73.5'/%3E%3Cuse href='%23s' x='98'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 22'%3E%3Cg%3E%3Cpath id='s' d='M11 1l3 6.5 7 .8-5.2 4.8 1.4 7L11 16.6 4.8 20l1.4-7L1 8.3l7-.8z'/%3E%3Cuse href='%23s' x='24.5'/%3E%3Cuse href='%23s' x='49'/%3E%3Cuse href='%23s' x='73.5'/%3E%3Cuse href='%23s' x='98'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat}}
 .shophead{{display:flex;align-items:end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:18px}}
 .shophead h2{{font:700 clamp(30px,4vw,44px)/1.05 Fraunces,serif;margin:6px 0 0;letter-spacing:-.8px}}
+.card.hit{{outline:2px solid var(--ink);outline-offset:3px}}
 .search{{flex:0 1 320px;position:relative}}.search input{{width:100%;font:500 15px Inter;padding:13px 16px 13px 42px;border-radius:14px;border:1.5px solid var(--line);background:var(--card);outline:none;transition:border-color .2s}}
 .search input:focus{{border-color:var(--ink)}}.search svg{{position:absolute;left:14px;top:50%;transform:translateY(-50%);opacity:.5}}
 .chips{{display:flex;gap:8px;overflow-x:auto;padding:4px 0 22px;scrollbar-width:none}}.chips::-webkit-scrollbar{{display:none}}
@@ -146,6 +155,7 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 let cat='all';const q=document.getElementById('q'),cards=[...document.querySelectorAll('.card')],empty=document.getElementById('empty');
 function f(){{const s=q.value.trim().toLowerCase();let n=0;cards.forEach(c=>{{const ok=(cat==='all'||c.dataset.cat===cat)&&(!s||c.dataset.q.includes(s));c.style.display=ok?'':'none';if(ok){{n++;c.classList.add('in')}}}});empty.style.display=n?'none':'block'}}
 q.addEventListener('input',f);document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));b.classList.add('on');cat=b.dataset.c;f()}});
+const P=new URLSearchParams(location.search).get('q');if(P){{const w=P.toLowerCase(),g=cards[0]&&cards[0].parentNode;if(g){{cards.filter(c=>c.dataset.q.includes(w)).reverse().forEach(c=>{{g.prepend(c);c.classList.add('in','hit')}});setTimeout(()=>g.scrollIntoView({{behavior:'smooth'}}),300)}}}}
 if(location.hash){{const el=document.querySelector(location.hash);if(el)setTimeout(()=>el.scrollIntoView({{behavior:'smooth'}}),300)}}
 </script>{cue}</body></html>'''
 os.makedirs(os.path.join(ROOT,"docs"),exist_ok=True)
