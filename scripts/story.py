@@ -185,7 +185,7 @@ def render(spec, host, imgs, out, font, tmp):
     n=int(total*sr); mix=np.zeros(n); v=voice[:n]; mix[:len(v)]+=v*0.95
     bed=music(total,sr); duck=np.ones(n)*0.62; duck[:len(v)]=0.16
     # Tara voice lines (reusable pack in media/voice) over the proof and CTA scenes, only for Tara reels
-    if not nohost:
+    if True:
         import os, random, glob
         vdir=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),"media","voice")
         rnd=random.Random(spec.get("brand","")+str(total))
@@ -195,9 +195,9 @@ def render(spec, host, imgs, out, font, tmp):
             raw=subprocess.run(["ffmpeg","-loglevel","error","-i",rnd.choice(fs),"-f","s16le","-ac","1","-ar",str(sr),"-"],capture_output=True).stdout
             return np.frombuffer(raw,np.int16).astype(np.float32)/32768
         cues=[]
+        plan={"problem":"problem_","reveal":"reveal_","features":"feat_","proof":"proof_","cta":"cta_"} if nohost else {"features":"feat_","proof":"proof_","cta":"cta_"}
         for nm,s0,d in starts:
-            if nm=="proof": cues.append((s0+0.2,line("proof_")))
-            if nm=="cta": cues.append((s0+0.15,line("cta_")))
+            if nm in plan: cues.append((s0+0.2,line(plan[nm])))
         for t0,clip in cues:
             if clip is None: continue
             a=int(t0*sr); b=min(n,a+len(clip))
