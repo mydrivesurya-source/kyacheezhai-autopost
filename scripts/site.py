@@ -9,11 +9,13 @@ for f in sorted(glob.glob(os.path.join(ROOT,"specs","*.json"))):
     stem=os.path.basename(f)[:-5]
     if stem[:15]>now: continue
     d=json.load(open(f,encoding="utf-8"))
-    if d.get("kind")!="reel" or not d.get("asin"): continue
+    if d.get("kind")!="reel" or not (d.get("asin") or d.get("url")): continue
+    store=d.get("store","Amazon")
+    url=d.get("url") or f"https://www.amazon.in/dp/{d['asin']}?tag={TAG}"
     items.append(dict(id=stem[16:],when=stem[:15],name=(d.get("brand","")+" "+" ".join(d.get("name",[]))).strip(),
         brand=d.get("brand",""),cat=d.get("category","Finds"),img=d["images"][0],story=d.get("problem",""),
         hook=d.get("hook",""),feat=[x for x in d.get("feat",[]) if x][:3],rating=d.get("rating",""),
-        reviews=d.get("reviews",""),bought=d.get("bought",""),url=f"https://www.amazon.in/dp/{d['asin']}?tag={TAG}"))
+        reviews=d.get("reviews",""),bought=d.get("bought",""),url=url,store=store))
 items.sort(key=lambda x:x["when"],reverse=True)
 e=html.escape
 cats=sorted({i["cat"] for i in items})
@@ -30,16 +32,18 @@ def card(i,n):
   <div class="body"><div class="meta"><span class="cat">{e(i['cat'])}</span>{bought}</div>
   <h3>{e(i['name'])}</h3><p class="why">{e(i['story'])}</p><ul>{feats}</ul>
   <div class="foot"><div class="rate">{stars(i['rating'])}<span>{e(i['rating'])} · {e(i['reviews'])}</span></div>
-  <a class="btn" href="{e(i['url'])}" target="_blank" rel="nofollow sponsored noopener">View on Amazon <span aria-hidden="true">&rarr;</span></a></div></div></article>'''
+  <a class="btn" href="{e(i['url'])}" target="_blank" rel="nofollow sponsored noopener">View on {e(i['store'])} <span aria-hidden="true">&rarr;</span></a></div></div></article>'''
 feat=items[0] if items else None
 featured=f'''<section class="feature reveal" id="today"><div class="fimg"><img src="{e(feat['img'])}" alt="{e(feat['name'])}"></div>
   <div class="ftext"><span class="eyebrow">Today's find</span><h2>{e(feat['name'])}</h2><p class="lede">{e(feat['story'])}</p>
   <ul class="ticks">{''.join(f'<li>{e(x)}</li>' for x in feat['feat'])}</ul>
   <div class="rate big">{stars(feat['rating'])}<span>{e(feat['rating'])}/5 from {e(feat['reviews'])} ratings</span></div>
-  <a class="btn lg" href="{e(feat['url'])}" target="_blank" rel="nofollow sponsored noopener">Check today's price <span aria-hidden="true">&rarr;</span></a></div></section>''' if feat else ""
+  <a class="btn lg" href="{e(feat['url'])}" target="_blank" rel="nofollow sponsored noopener">Check price on {e(feat['store'])} <span aria-hidden="true">&rarr;</span></a></div></section>''' if feat else ""
 grid="\n".join(card(i,n) for n,i in enumerate(items,1))
 chips='<button class="chip on" data-c="all">All</button>'+"".join(f'<button class="chip" data-c="{e(c)}">{e(c)}</button>' for c in cats)
 ogimg=e(items[0]["img"]) if items else "assets/tara_rooftop.jpg"
+CID=os.environ.get("CUELINKS_CID","").strip() or (open(os.path.join(ROOT,"cuelinks_cid.txt")).read().strip() if os.path.exists(os.path.join(ROOT,"cuelinks_cid.txt")) else "")
+cue=(f'<script>var cId="{CID}";(function(d,t){{var s=document.createElement("script");s.type="text/javascript";s.async=true;s.src=(document.location.protocol=="https:"?"https://cdn0.cuelinks.com/js/":"http://cdn0.cuelinks.com/js/")+"cuelinksv2.js";document.getElementsByTagName("body")[0].appendChild(s);}}());</script>') if CID else ""
 page=f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Kya Cheez Hai — Daily finds worth buying</title>
 <meta name="description" content="Handpicked, highly rated finds from Amazon India — watches, beauty, bags, travel and home. Curated daily by @kyacheezhai.in.">
@@ -134,7 +138,7 @@ footer .row{{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
 <section class="band reveal"><div><span class="eyebrow">Never miss a find</span><h2>New finds drop twice a day on Instagram.</h2><p>Short, honest reels with the real product — follow along and save what you love.</p>
 <a class="btn lg" href="{IG}" target="_blank" rel="noopener">Follow @kyacheezhai.in <span aria-hidden="true">&rarr;</span></a></div><div class="ph"><img loading="lazy" src="assets/tara_party.jpg" alt="Kya Cheez Hai on Instagram"></div></section>
 </main>
-<footer><div class="wrap row"><span>© {datetime.date.today().year} Kya Cheez Hai</span><span>As an Amazon Associate we earn from qualifying purchases. Prices and availability are set by Amazon. Our host Tara is AI-generated; product photos are from the listings.</span></div></footer>
+<footer><div class="wrap row"><span>© {datetime.date.today().year} Kya Cheez Hai</span><span>As an Amazon Associate and affiliate partner of other stores, we earn from qualifying purchases at no extra cost to you. Prices and availability are set by each store. Our host Tara is AI-generated; product photos are from the listings.</span></div></footer>
 <script>
 const t=document.getElementById('top');addEventListener('scroll',()=>t.classList.toggle('s',scrollY>10),{{passive:true}});
 const io=new IntersectionObserver(es=>es.forEach(x=>{{if(x.isIntersecting){{x.target.classList.add('in');io.unobserve(x.target)}}}}),{{threshold:.08}});
@@ -143,7 +147,7 @@ let cat='all';const q=document.getElementById('q'),cards=[...document.querySelec
 function f(){{const s=q.value.trim().toLowerCase();let n=0;cards.forEach(c=>{{const ok=(cat==='all'||c.dataset.cat===cat)&&(!s||c.dataset.q.includes(s));c.style.display=ok?'':'none';if(ok){{n++;c.classList.add('in')}}}});empty.style.display=n?'none':'block'}}
 q.addEventListener('input',f);document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));b.classList.add('on');cat=b.dataset.c;f()}});
 if(location.hash){{const el=document.querySelector(location.hash);if(el)setTimeout(()=>el.scrollIntoView({{behavior:'smooth'}}),300)}}
-</script></body></html>'''
+</script>{cue}</body></html>'''
 os.makedirs(os.path.join(ROOT,"docs"),exist_ok=True)
 open(os.path.join(ROOT,"docs","index.html"),"w",encoding="utf-8").write(page)
 open(os.path.join(ROOT,"docs",".nojekyll"),"w").write("")
