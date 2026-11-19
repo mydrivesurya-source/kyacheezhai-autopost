@@ -1,8 +1,22 @@
 """Build the Kya Cheez Hai shop site into docs/ (GitHub Pages).
-Lists every reel product whose post time (IST) has passed, newest first."""
-import json, glob, os, datetime, html
+Lists every reel product whose post time (IST) has passed, newest first.
+
+CLICK TRACKING (Meta pixel "KYA CHEEZ HAI", dataset 1508832264448418) — never remove:
+- Main page fires PageView; a visit arriving with ?q= (ManyChat DM link) also fires DMVisit.
+- Every shop button links to go/<spec-slug>/?src=<dm|instagram|direct>. That page fires
+  ShopClick + ViewContent (content_ids=[slug], content_category, store, source) and then
+  forwards to the store with the affiliate tag. Shop clicks per product = hits on /go/<slug>/."""
+import json, glob, os, datetime, html, shutil, urllib.parse
 ROOT=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TAG="kyacheezhai-21"; IG="https://www.instagram.com/kyacheezhai.in/"
+PIXEL="1508832264448418"
+def pixel_head(extra=""):
+    return (f"<script>!function(f,b,e,v,n,t,s){{if(f.fbq)return;n=f.fbq=function(){{n.callMethod?"
+            f"n.callMethod.apply(n,arguments):n.queue.push(arguments)}};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;"
+            f"n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];"
+            f"s.parentNode.insertBefore(t,s)}}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');"
+            f"fbq('init','{PIXEL}');fbq('track','PageView');{extra}</script>"
+            f'<noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id={PIXEL}&ev=PageView&noscript=1"></noscript>')
 now=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(hours=5,minutes=30)).strftime("%Y-%m-%d-%H%M")
 items=[]
 shown=set()  # product images already featured in a posted carousel -> list those products now
@@ -23,7 +37,7 @@ for f in sorted(glob.glob(os.path.join(ROOT,"specs","*.json"))):
     items.append(dict(id=stem[16:],when=min(stem[:15],now),kw=kw,name=(d.get("brand","")+" "+" ".join(d.get("name",[]))).strip(),
         brand=d.get("brand",""),cat=d.get("category","Finds"),img=d["images"][0],story=d.get("problem",""),
         hook=d.get("hook",""),feat=[x for x in d.get("feat",[]) if x][:3],rating=d.get("rating",""),
-        reviews=d.get("reviews",""),bought=d.get("bought",""),url=url,store=store))
+        reviews=d.get("reviews",""),bought=d.get("bought",""),url=url,store=store,go=f"go/{stem[16:]}/"))
 items.sort(key=lambda x:x["when"],reverse=True)
 e=html.escape
 cats=sorted({i["cat"] for i in items})
@@ -36,28 +50,30 @@ def card(i,n):
     feats="".join(f"<li>{e(x)}</li>" for x in i["feat"])
     bought=f'<span class="pill">{e(i["bought"])} bought last month</span>' if i["bought"] else ""
     return f'''<article class="card reveal" data-cat="{e(i['cat'])}" data-q="{e((i['name']+' '+i['cat']+' '+i['kw']).lower())}" id="{e(i['id'])}">
-  <a class="media" href="{e(i['url'])}" target="_blank" rel="nofollow sponsored noopener"><img loading="lazy" src="{e(i['img'])}" alt="{e(i['name'])}"><span class="num">{n:02d}</span></a>
+  <a class="media shop" href="{e(i['go'])}" target="_blank" rel="nofollow sponsored noopener"><img loading="lazy" src="{e(i['img'])}" alt="{e(i['name'])}"><span class="num">{n:02d}</span></a>
   <div class="body"><div class="meta"><span class="cat">{e(i['cat'])}</span>{bought}</div>
   <h3>{e(i['name'])}</h3><p class="why">{e(i['story'])}</p><ul>{feats}</ul>
   <div class="foot"><div class="rate">{stars(i['rating'])}<span>{e(i['rating'])} · {e(i['reviews'])}</span></div>
-  <a class="btn" href="{e(i['url'])}" target="_blank" rel="nofollow sponsored noopener">View on {e(i['store'])} <span aria-hidden="true">&rarr;</span></a></div></div></article>'''
+  <a class="btn shop" href="{e(i['go'])}" target="_blank" rel="nofollow sponsored noopener">View on {e(i['store'])} <span aria-hidden="true">&rarr;</span></a></div></div></article>'''
 feat=items[0] if items else None
 featured=f'''<section class="feature reveal" id="today"><div class="fimg"><img src="{e(feat['img'])}" alt="{e(feat['name'])}"></div>
   <div class="ftext"><span class="eyebrow">Today's find</span><h2>{e(feat['name'])}</h2><p class="lede">{e(feat['story'])}</p>
   <ul class="ticks">{''.join(f'<li>{e(x)}</li>' for x in feat['feat'])}</ul>
   <div class="rate big">{stars(feat['rating'])}<span>{e(feat['rating'])}/5 from {e(feat['reviews'])} ratings</span></div>
-  <a class="btn lg" href="{e(feat['url'])}" target="_blank" rel="nofollow sponsored noopener">Check price on {e(feat['store'])} <span aria-hidden="true">&rarr;</span></a></div></section>''' if feat else ""
+  <a class="btn lg shop" href="{e(feat['go'])}" target="_blank" rel="nofollow sponsored noopener">Check price on {e(feat['store'])} <span aria-hidden="true">&rarr;</span></a></div></section>''' if feat else ""
 grid="\n".join(card(i,n) for n,i in enumerate(items,1))
 chips='<button class="chip on" data-c="all">All</button>'+"".join(f'<button class="chip" data-c="{e(c)}">{e(c)}</button>' for c in cats)
 ogimg=e(items[0]["img"]) if items else "assets/tara_rooftop.jpg"
 CID=os.environ.get("CUELINKS_CID","").strip() or (open(os.path.join(ROOT,"cuelinks_cid.txt")).read().strip() if os.path.exists(os.path.join(ROOT,"cuelinks_cid.txt")) else "")
 cue=(f'<script>var cId="{CID}";(function(d,t){{var s=document.createElement("script");s.type="text/javascript";s.async=true;s.src=(document.location.protocol=="https:"?"https://cdn0.cuelinks.com/js/":"http://cdn0.cuelinks.com/js/")+"cuelinksv2.js";document.getElementsByTagName("body")[0].appendChild(s);}}());</script>') if CID else ""
+PIX=pixel_head("var P0=new URLSearchParams(location.search).get('q');if(P0)fbq('trackCustom','DMVisit',{keyword:P0.toLowerCase()});")
 page=f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Kya Cheez Hai — Daily finds worth buying</title>
 <meta name="description" content="Handpicked, highly rated finds from Amazon India — watches, beauty, bags, travel and home. Curated daily by @kyacheezhai.in.">
 <meta property="og:title" content="Kya Cheez Hai — Daily finds worth buying"><meta property="og:description" content="Handpicked, highly rated finds. Curated daily."><meta property="og:image" content="{ogimg}"><meta name="theme-color" content="#14110F">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+{PIX}
 <style>
 :root{{--ink:#14110F;--paper:#FBF7F1;--card:#FFFFFF;--line:#ECE4D8;--muted:#7A7068;--coral:#FF5A4E;--coral2:#E8473C;--mint:#2FBF85;--gold:#F2B33D;--r:22px}}
 *{{box-sizing:border-box}}html{{scroll-behavior:smooth}}
@@ -156,9 +172,27 @@ let cat='all';const q=document.getElementById('q'),cards=[...document.querySelec
 function f(){{const s=q.value.trim().toLowerCase();let n=0;cards.forEach(c=>{{const ok=(cat==='all'||c.dataset.cat===cat)&&(!s||c.dataset.q.includes(s));c.style.display=ok?'':'none';if(ok){{n++;c.classList.add('in')}}}});empty.style.display=n?'none':'block'}}
 q.addEventListener('input',f);document.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{{document.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));b.classList.add('on');cat=b.dataset.c;f()}});
 const P=new URLSearchParams(location.search).get('q');if(P){{const w=P.toLowerCase(),g=cards[0]&&cards[0].parentNode;if(g){{cards.filter(c=>c.dataset.q.includes(w)).reverse().forEach(c=>{{g.prepend(c);c.classList.add('in','hit')}});setTimeout(()=>g.scrollIntoView({{behavior:'smooth'}}),300)}}}}
+var SRC=(function(){{try{{var u=new URLSearchParams(location.search),r=document.referrer||'',v;
+if(u.get('q')||u.get('src')==='dm')v='dm';else if(u.get('src')==='instagram'||u.get('igshid')||u.get('fbclid')||/instagram\\.com|facebook\\.com|l\\.instagram/.test(r))v='instagram';
+v=v||sessionStorage.getItem('kch_src')||'direct';sessionStorage.setItem('kch_src',v);return v}}catch(_){{return 'direct'}}}})();
+document.querySelectorAll('a.shop').forEach(a=>{{a.href=a.getAttribute('href')+'?src='+SRC}});
 if(location.hash){{const el=document.querySelector(location.hash);if(el)setTimeout(()=>el.scrollIntoView({{behavior:'smooth'}}),300)}}
 </script>{cue}</body></html>'''
 os.makedirs(os.path.join(ROOT,"docs"),exist_ok=True)
 open(os.path.join(ROOT,"docs","index.html"),"w",encoding="utf-8").write(page)
 open(os.path.join(ROOT,"docs",".nojekyll"),"w").write("")
-print("site:",len(items),"products")
+CUE_WRAP=lambda u,store: (f"https://linksredirect.com/?cid={CID}&source=linkkit&url="+urllib.parse.quote(u,safe="")) if CID and store!="Amazon" else u
+gdir=os.path.join(ROOT,"docs","go"); shutil.rmtree(gdir,ignore_errors=True)
+for i in items:
+    dest=CUE_WRAP(i["url"],i["store"]); js=json.dumps
+    ev=("var S=new URLSearchParams(location.search).get('src')||'direct',D={content_ids:["+js(i["id"])+"],content_type:'product',content_name:"+js(i["name"])+
+        ",content_category:"+js(i["cat"])+",store:"+js(i["store"])+",source:S};fbq('trackCustom','ShopClick',D);fbq('track','ViewContent',D);")
+    g=f'''<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Opening {e(i['store'])}…</title>
+<noscript><meta http-equiv="refresh" content="0;url={e(dest)}"></noscript>{pixel_head(ev)}
+<style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#FBF7F1;color:#14110F;font:500 16px Inter,system-ui,sans-serif;text-align:center}}a{{color:#E8473C}}</style></head>
+<body><p>Opening {e(i['store'])}…<br><small><a href="{e(dest)}" rel="nofollow sponsored">Tap here if it doesn\'t open</a></small></p>
+<script>setTimeout(function(){{location.replace({js(dest)})}},700);</script></body></html>'''
+    os.makedirs(os.path.join(gdir,i["id"]),exist_ok=True)
+    open(os.path.join(gdir,i["id"],"index.html"),"w",encoding="utf-8").write(g)
+print("site:",len(items),"products,",len(items),"go pages")
