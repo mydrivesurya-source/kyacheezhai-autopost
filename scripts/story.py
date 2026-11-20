@@ -165,8 +165,9 @@ def render(spec, host, imgs, out, font, tmp):
             im.paste(tara(i) if nohost else still(int(lt*FPS)),(0,0)); dr=ImageDraw.Draw(im)
             s=1+0.06*math.sin(lt*2*math.pi*1.6); bw,bh=int(760*s),int(150*s)
             dr.rounded_rectangle([(W-bw)//2,1250,(W+bw)//2,1250+bh],bh//2,fill=CORAL)
-            f=F(int(72*s)); tx="Link in bio"; dr.text(((W-dr.textlength(tx,font=f))/2,1250+bh/2-44*s),tx,font=f,fill=WHITE)
-            c=spec.get("cta_comment","Comment YES for the link!")
+            word=(spec.get("cta_comment","Comment LINK").replace("Comment","").replace("for the link","").strip() or "LINK").upper()
+            f=F(int(72*s)); tx=f"Comment {word}"; dr.text(((W-dr.textlength(tx,font=f))/2,1250+bh/2-44*s),tx,font=f,fill=WHITE)
+            c="Link seedha aapke DM mein"
             dr.text(((W-dr.textlength(c,font=F(46)))/2,1450),c,font=F(46),fill=WHITE,stroke_width=4,stroke_fill=CH)
         # global chrome
         dr.rectangle([0,0,int(W*t/total),10],fill=CORAL)
@@ -195,7 +196,8 @@ def render(spec, host, imgs, out, font, tmp):
             raw=subprocess.run(["ffmpeg","-loglevel","error","-i",rnd.choice(fs),"-f","s16le","-ac","1","-ar",str(sr),"-"],capture_output=True).stdout
             return np.frombuffer(raw,np.int16).astype(np.float32)/32768
         cues=[]
-        plan={"problem":"problem_","reveal":"reveal_","features":"feat_","proof":"proof_","cta":"cta_"} if nohost else {"features":"feat_","proof":"proof_","cta":"cta_"}
+        # CTA voice must match the on-screen CTA ("Comment WORD" -> DM), so always cta_comment
+        plan={"reveal":"reveal_","features":"feat_","proof":"proof_","cta":"cta_comment"} if nohost else {"features":"feat_","proof":"proof_","cta":"cta_comment"}
         for nm,s0,d in starts:
             if nm in plan: cues.append((s0+0.2,line(plan[nm])))
         for t0,clip in cues:
