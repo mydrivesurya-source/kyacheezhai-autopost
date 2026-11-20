@@ -184,7 +184,7 @@ def render(spec, host, imgs, out, font, tmp):
     raw=b"" if nohost else subprocess.run(["ffmpeg","-loglevel","error","-i",host,"-f","s16le","-ac","1","-ar",str(sr),"-"],capture_output=True).stdout
     voice=np.frombuffer(raw,np.int16).astype(np.float32)/32768 if raw else np.zeros(0)
     n=int(total*sr); mix=np.zeros(n); v=voice[:n]; mix[:len(v)]+=v*0.95
-    bed=music(total,sr); duck=np.ones(n)*0.62; duck[:len(v)]=0.16
+    bed=music(total,sr); duck=np.ones(n)*(0.85 if nohost else 0.62); duck[:len(v)]=0.16
     # Tara voice lines (reusable pack in media/voice) over the proof and CTA scenes, only for Tara reels
     if True:
         import os, random, glob
@@ -197,7 +197,8 @@ def render(spec, host, imgs, out, font, tmp):
             return np.frombuffer(raw,np.int16).astype(np.float32)/32768
         cues=[]
         # CTA voice must match the on-screen CTA ("Comment WORD" -> DM), so always cta_comment
-        plan={"reveal":"reveal_","features":"feat_","proof":"proof_","cta":"cta_comment"} if nohost else {"features":"feat_","proof":"proof_","cta":"cta_comment"}
+        # Product-only reels: no voice at all (music + text). Tara reels: her own on-camera line + the CTA line only.
+        plan={} if nohost else {"cta":"cta_comment"}
         for nm,s0,d in starts:
             if nm in plan: cues.append((s0+0.2,line(plan[nm])))
         for t0,clip in cues:
