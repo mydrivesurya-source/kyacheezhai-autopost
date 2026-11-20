@@ -65,9 +65,19 @@ def main():
     # due = slot time already passed (catches missed slots too); at most 2 per run to stay natural
     files = sorted(f for f in q.glob("*.json") if (f.name.startswith(only) if only else f.name[:15] <= now))[:3]
     if not files: print("nothing due at", now); return
+    # Guard against double posts (e.g. a run that published but failed to push "Mark posted"):
+    # skip any feed post whose caption already appears on the account's recent posts.
+    try:
+        recent = {(m.get("caption") or "").strip() for m in call(f"{IG}/media", {"fields": "caption", "limit": "25"}, "GET").get("data", [])}
+    except SystemExit as e:
+        print("could not read recent media:", e); recent = set()
     for f in files:
+        post = json.loads(f.read_text())
+        cap = (post.get("caption") or "").strip()
+        if post.get("type") != "story" and cap and cap in recent:
+            print("already on Instagram, skipping", f.name); shutil.move(str(f), done / f.name); continue
         try:
-            mid = publish(json.loads(f.read_text()))
+            mid = publish(post)
         except SystemExit as e:
             print("API error on", f.name, e); continue
         print("published", f.name, "->", mid)
