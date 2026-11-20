@@ -5,7 +5,7 @@ Queue files: queue/YYYY-MM-DD-HHMM-<slug>.json  (IST date + earliest IST post ti
   media: [url, ...]   (public URLs; for files in this repo use media/<name>)
 Posted files are moved to queue/done/.
 """
-import json, os, pathlib, time, urllib.parse, urllib.request, datetime, shutil, sys
+import json, os, pathlib, time, urllib.parse, urllib.request, datetime, shutil, sys, subprocess
 
 G = "https://graph.facebook.com/v21.0"
 TOKEN = os.environ["IG_TOKEN"]; IG = os.environ["IG_USER_ID"]
@@ -58,9 +58,27 @@ def publish(post):
     wait_ready(cid)
     return call(f"{IG}/media_publish", {"creation_id": cid})["id"]
 
+def git(*a): return subprocess.run(["git", *a], capture_output=True, text=True)
+
+def sync_push(msg):
+    """Commit staged changes and push, rebasing on conflicts. True only if the push landed."""
+    if git("commit", "-qm", msg).returncode != 0: return False
+    for i in range(6):
+        if git("pull", "-q", "--rebase", "origin", "main").returncode == 0 and git("push", "-q").returncode == 0: return True
+        time.sleep(5 * (i + 1))
+    return False
+
+def claim(f, done):
+    """At-most-once: move the item to queue/done and push BEFORE publishing. If the claim can't be pushed, don't publish."""
+    if not os.environ.get("GITHUB_ACTIONS"): shutil.move(str(f), done / f.name); return True
+    git("mv", str(f), str(done / f.name))
+    if sync_push(f"Claim {f.name}"): return True
+    git("reset", "-q", "--hard", "origin/main"); return False
+
 def main():
     now = (datetime.datetime.utcnow() + datetime.timedelta(hours=5, minutes=30)).strftime("%Y-%m-%d-%H%M")
     only = sys.argv[1] if len(sys.argv) > 1 else None
+    if os.environ.get("GITHUB_ACTIONS"): git("pull", "-q", "--rebase", "origin", "main")   # see items other runs already claimed
     q = pathlib.Path("queue"); done = q / "done"; done.mkdir(exist_ok=True)
     # due = slot time already passed (catches missed slots too); at most 2 per run to stay natural
     files = sorted(f for f in q.glob("*.json") if (f.name.startswith(only) if only else f.name[:15] <= now))[:3]
@@ -76,12 +94,16 @@ def main():
         cap = (post.get("caption") or "").strip()
         if post.get("type") != "story" and cap and cap in recent:
             print("already on Instagram, skipping", f.name); shutil.move(str(f), done / f.name); continue
+        if not f.exists(): print("already claimed", f.name); continue
+        if not claim(f, done): print("could not claim, skipping", f.name); continue
         try:
             mid = publish(post)
         except SystemExit as e:
-            print("API error on", f.name, e); continue
+            print("API error on", f.name, e)
+            if os.environ.get("GITHUB_ACTIONS"):
+                git("mv", str(done / f.name), str(f)); sync_push(f"Unclaim {f.name} (publish failed)")
+            continue
         print("published", f.name, "->", mid)
-        shutil.move(str(f), done / f.name)
 
 if __name__ == "__main__":
     main()
