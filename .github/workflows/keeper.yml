@@ -25,7 +25,8 @@ jobs:
             if [ $m -ge 600 ] && [ $m -le 1350 ]; then
               gh api -X POST repos/$REPO/actions/workflows/publish.yml/dispatches -f ref=main && echo "dispatched at IST minute $m"
             fi
-            sleep 600
+            # wake on the :05/:15/:25/:35/:45/:55 grid (+20 s) so :15 and :45 slots post on time
+            now=$(date +%s); nxt=$(( ( (now - 300) / 600 + 1 ) * 600 + 320 )); sleep $(( nxt - now ))
           done
       - name: Restart myself
         if: always()
